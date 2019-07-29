@@ -1,5 +1,5 @@
 /* ========================================================================
- * SaRibe: eModal.js v1.2.65
+ * SaRibe: eModal.js v1.2.67
  * http://saribe.github.io/eModal
  * ========================================================================
  * Copyright Samuel Ribeiro.
@@ -11,6 +11,7 @@
  * @params allowed elements:
  *     buttons  {array}:           An array of objects to configure buttons to modal footer; only able if message == string
  *     css      {object}:          CSS object try apply into message body; only able if message == string
+ *     data     {object}:          Used for iframe with post data parameters              
  *     loading  {boolean}:         Set loading progress as message.
  *     message  {string|object}:   The body message string or the HTML element. e.g.: $(selector);
  *     size     {string}:          sm || lg || xl -> define the modal size.
@@ -64,7 +65,8 @@
             title: 'Attention',
             autofocus: false
         };
-
+        
+        root = root || {};
         root.addLabel = addLabel;
         root.ajax = ajax;
         root.alert = alert;
@@ -77,7 +79,7 @@
         root.setEModalOptions = setEModalOptions;
         root.setModalOptions = setModalOptions;
         root.size = SIZE;
-        root.version = '1.2.65';
+        root.version = '1.2.67';
 
         return root;
 
@@ -233,7 +235,7 @@
                 return $('<div class="modal fade" tabindex="-1"><style>.modal-xl{width:96%;}.modal-body{max-height: calc(100vh - 145px);overflow-y: auto;}</style>' +
                     '<div class=modal-dialog>' +
                     '<div class=modal-content>' +
-                    ' <div class=modal-header><button type=button class="x close" data-dismiss=modal><span aria-hidden=true>&times;</span><span class=sr-only>Close</span></button><h4 class=modal-title></h4></div>' +
+                    ' <div class=modal-header><button type=button class="x close" data-dismiss=modal aria-label="Close"><span aria-hidden=true>&times;</span></button><h5 class=modal-title></h5></div>' +
                     '</div>' +
                     '</div>' +
                     '</div>')
@@ -254,6 +256,27 @@
                         return $modal;
                     });
             }
+        }
+
+        /**
+         * @param {String} version 
+         * @returns {Boolean}
+         */
+        function _jQueryMinVersion(version) {
+            var $ver = $.fn.jquery.split('.');
+            var ver = version.split('.');
+            var $major = $ver[0];
+            var $minor = $ver[1];
+            var $patch = $ver[2];
+            var major = ver[0];
+            var minor = ver[1];
+            var patch = ver[2];
+        
+            return !(
+                (major > $major) ||
+                (major === $major && minor > $minor) ||
+                (major === $major && minor === $minor && patch > $patch)
+            );
         }
 
         /**
@@ -293,18 +316,17 @@
 
             // Lazy loading
             var $ref = _getModalInstance();
+            var size = 'modal-' + (params.size || defaultSettings.size);
 
-            //#region change size
+            // Change size
             $ref.find(MODAL_DIALOG)
                 .removeClass('modal-sm modal-lg modal-xl')
-                .addClass(params.size ? 'modal-' + params.size : defaultSettings.size);
-            //#endregion
+                .addClass(params.size || defaultSettings.size ? size : null);
 
-            //#region change title
+            // Change title
             $ref.find('.modal-title')
                 .html((params.title || title || defaultSettings.title) + ' ')
                 .append($('<small>').html(params.subtitle || EMPTY));
-            //#endregion
 
             $ref.on(HIDE, params.onHide);
         }
@@ -333,6 +355,7 @@
             var params = {
                 async: true,
                 deferred: dfd,
+                xhrFields: { withCredentials: false },
                 loading: true,
                 title: title || defaultSettings.title,
                 url: data.url || data,
@@ -451,13 +474,19 @@
                 setEModalOptions(data);
             }
 
-            var html = ('<div class=modal-body style="position: absolute;width: 100%;background-color: rgba(255,255,255,0.8);height: 100%;">%1%</div>' +
-                '<iframe class="embed-responsive-item" frameborder=0 src="%0%" style="width:100%;height:75vh;display:block;"/>')
-                .replace('%0%', params.message || params.url || params)
-                .replace('%1%', defaultSettings.loadingHtml);
+            var postData = params.data ? 
+                Object.keys(params.data).map(mapData).join(' ') : 
+                '';
 
-            var message = $(html)
-                .load(iframeReady);
+            var html = ('<div class=modal-body style="position: absolute;width: 100%;background-color: rgba(255,255,255,0.8);height: 100%;">%1%</div>' +
+                '<iframe class="embed-responsive-item" frameborder=0 src="%0%" %2% style="width:100%;height:75vh;display:block;"/>')
+                .replace('%0%', params.message || params.url || params)
+                .replace('%1%', defaultSettings.loadingHtml)
+                .replace('%2%', postData);
+
+            var message = _jQueryMinVersion('3.0.0') ? 
+                $(html).on('load', iframeReady):
+                $(html).load(iframeReady);
 
             return alert({
                 async: true,
@@ -468,6 +497,10 @@
                 title: params.title || title
             });
             //////////
+
+            function mapData(item) {
+                return item + '="' + params.data[item] + '"';
+            }
 
             function iframeReady() {
                 $(this)
@@ -603,6 +636,6 @@
     define :
     function (args, mName) {
         this.eModal = typeof module != 'undefined' && module.exports ?
-            mName(require(args[0]), module.exports) :
-            mName(window.$, {});
+            mName(require(args[0], {}), module.exports) :
+            mName(window.$);
     }));
